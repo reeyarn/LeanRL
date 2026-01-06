@@ -66,6 +66,56 @@ from .taxonomy import (
 # Utilities
 from .utils import extract_concept_from_href
 
+# EDGAR - SEC filing access and processing
+from .edgar import (
+    # Core EDGAR
+    EG_LOCAL,
+    FilingInfo,
+    get_index_json,
+    get_latest_quarter_dir,
+    find_latest_filing_info_going_back_from,
+    get_filing_info,
+    get_financial_filing_info,
+    InvalidInputException,
+    # Stock
+    Stock,
+    update_symbols_data,
+    should_update_symbols_file,
+    NoFilingInfoException,
+    # Filing
+    Filing,
+    Statements,
+    # Document
+    Document,
+    DocumentText,
+    clean_doc,
+    # Data structures
+    DTD,
+    Sgml,
+    SgmlException,
+    # Financial
+    FinancialReportEncoder,
+    FinancialElement,
+    FinancialInfo,
+    FinancialReport,
+    MetaDataParsingException,
+    get_financial_report,
+    # Loader
+    get_edgar_local_path,
+    get_xbrl_df_by_ticker_year,
+    load_xbrl_filing,
+    #get_fact_df,
+    #get_xbrl_df,
+    #run_xbrl_worker,
+    # Versioned pickle
+    #VersionedPickle,
+    # Requests
+    GetRequest,
+    RequestException,
+    # Helper
+    extract_filing_to_memfs,
+)
+
 __all__ = [
     '__version__',
     # Core
@@ -117,4 +167,50 @@ __all__ = [
     'build_taxonomy_dataframe_from_zip',
     # Utils
     'extract_concept_from_href',
+    # EDGAR - Core
+    'EG_LOCAL',
+    'FilingInfo',
+    'get_index_json',
+    'get_latest_quarter_dir',
+    'find_latest_filing_info_going_back_from',
+    'get_filing_info',
+    'get_financial_filing_info',
+    'InvalidInputException',
+    # EDGAR - Stock
+    'Stock',
+    'update_symbols_data',
+    'should_update_symbols_file',
+    'NoFilingInfoException',
+    # EDGAR - Filing
+    'Filing',
+    'Statements',
+    # EDGAR - Document
+    'Document',
+    'DocumentText',
+    'clean_doc',
+    # EDGAR - Data structures
+    'DTD',
+    'Sgml',
+    'SgmlException',
+    # EDGAR - Financial
+    'FinancialReportEncoder',
+    'FinancialElement',
+    'FinancialInfo',
+    'FinancialReport',
+    'MetaDataParsingException',
+    'get_financial_report',
+    # EDGAR - Loader
+    'get_edgar_local_path',
+    'get_xbrl_df_by_ticker_year',
+    'load_xbrl_filing',
+    # 'get_fact_df',
+    # 'get_xbrl_df',
+    # 'run_xbrl_worker',
+    # EDGAR - Versioned pickle
+    #'VersionedPickle',
+    # EDGAR - Requests
+    'GetRequest',
+    'RequestException',
+    # EDGAR - Helper
+    'extract_filing_to_memfs',
 ]

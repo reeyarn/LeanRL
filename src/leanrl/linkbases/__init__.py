@@ -32,7 +32,7 @@ from .calculation import (
     parse_calculation_linkbase,
     get_calculation_dataframe,
 )
-from .helper import get_specific_role_tree
+from .lb_helper import get_specific_role_tree
 
 __all__ = [
     # Shared hierarchy structures

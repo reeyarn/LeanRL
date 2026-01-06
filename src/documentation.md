@@ -6,8 +6,20 @@ Here is the documentation for the **LeanRL**  Python package.
 
 # LeanRL Package Documentation
 
-**Version:** 0.1.0
-**Description:** A lightweight, memory-efficient Python library for extracting specific information from XBRL filings and taxonomies (non-XML approach).
+**Version:** 0.1.5
+**Description:** A lightweight, memory-efficient Python library for accessing SEC EDGAR filings and extracting information from XBRL filings and taxonomies.
+
+---
+
+## Module Overview
+
+**LeanRL** provides five main modules:
+
+1. **`core`** - Base infrastructure, namespace management, and XML streaming utilities
+2. **`linkbases`** - Parsers for XBRL linkbases (Label, Reference, Definition, Presentation, Calculation)
+3. **`taxonomy`** - Tools for parsing XSD schemas and aggregating taxonomy data
+4. **`edgar`** - Tools for accessing and processing SEC EDGAR filings (NEW in v0.1.5)
+5. **`utils`** - Utility functions for href parsing and concept name handling
 
 ---
 
@@ -274,7 +286,227 @@ Wrapper to process a zipped taxonomy file.
 
 ---
 
-## 4. Utils Module (`utils`)
+## 4. EDGAR Module (`edgar`)
+
+This module provides tools for accessing, downloading, and processing SEC EDGAR filings.
+
+**Important Notes:**
+- The module automatically caches downloaded filings to reduce network requests.
+- XSD schema files are processed with strict XML formatting preservation to ensure valid parsing.
+- Supports both file path and file-like object inputs for maximum flexibility (e.g., memory filesystems).
+
+### File: `edgar/edgar.py`
+
+#### Class: `EG_LOCAL`
+Local EDGAR cache manager.
+*   **Attributes:**
+    *   `edgar_root_dir` (str): Root directory for EDGAR cache (default: '/mnt/text/edgar' or from env var `EDGAR_ROOT_DIR`).
+    *   `symbols_data_path` (str): Path to symbols CSV file.
+    *   `cache_dir_str` (str): Cache directory for downloaded filings.
+
+#### Class: `FilingInfo` (Dataclass)
+Information about a specific filing.
+*   **Attributes:** `form_type`, `company_name`, `cik`, `date_filed`, `file_name`.
+
+#### Function: `get_index_json`
+Retrieves the index.json for a specific quarter.
+*   **Input:** `year` (int), `quarter` (int).
+*   **Output:** `dict` (Index data).
+
+#### Function: `get_latest_quarter_dir`
+*   **Output:** `tuple[int, int]` (year, quarter).
+
+#### Function: `find_latest_filing_info_going_back_from`
+Finds the latest filing of a specific form type.
+*   **Input:** `cik` (str), `form_type` (str), `start_year` (int), `start_quarter` (int), `egl` (EG_LOCAL).
+*   **Output:** `FilingInfo | None`.
+
+#### Function: `get_filing_info`
+Gets filing information for a specific period.
+*   **Input:** `cik` (str), `year` (int), `quarter` (int), `form_type` (str), `egl` (EG_LOCAL).
+*   **Output:** `FilingInfo | None`.
+
+#### Function: `get_financial_filing_info`
+Gets financial filing (10-K/10-Q) information.
+*   **Input:** `cik` (str), `period` (str, 'annual' or 'quarterly'), `year` (int), `egl` (EG_LOCAL).
+*   **Output:** `FilingInfo | None`.
+
+---
+
+### File: `edgar/stock.py`
+
+#### Class: `Stock`
+Represents a publicly traded company with access to its SEC filings.
+*   **Constructor:**
+    *   `Stock(symbol_or_cik=None, *, symbol=None, cik=None, egl=EG_LOCAL())`.
+    *   Can initialize with ticker symbol ('AAPL') or CIK ('320193').
+*   **Attributes:**
+    *   `symbol` (str): Stock ticker symbol.
+    *   `cik` (str): Central Index Key.
+    *   `company_name` (str): Company name.
+    *   `egl` (EG_LOCAL): EDGAR local cache manager.
+*   **Methods:**
+    *   `get_filing(period: str, year: int) -> Filing | None`: Get Filing object for specified period and year.
+    *   `get_all_filings(form_type: str) -> List[FilingInfo]`: Get all filings of a specific type.
+
+#### Function: `update_symbols_data`
+Downloads fresh company tickers data from SEC.
+*   **Input:** `egl` (EG_LOCAL, default=EG_LOCAL()).
+*   **Output:** None (updates symbols CSV file).
+
+#### Function: `should_update_symbols_file`
+Checks if symbols file needs updating.
+*   **Input:** `days` (int, default=28), `egl` (EG_LOCAL).
+*   **Output:** `bool`.
+
+---
+
+### File: `edgar/filing.py`
+
+#### Class: `Statements`
+Container for statement type constants.
+*   **Constants:** `INCOME`, `BALANCE_SHEET`, `CASH_FLOW`, `STOCKHOLDERS_EQUITY`, `COMPREHENSIVE_INCOME`, `PARENTHETICAL`.
+
+#### Class: `Filing`
+Represents an SEC filing with document access and caching.
+*   **Constructor:** `Filing(url: str, company: str | None, egl: EG_LOCAL)`.
+*   **Attributes:**
+    *   `url` (str): URL of the filing.
+    *   `company` (str | None): Company name.
+    *   `documents` (dict): Dictionary of Document objects keyed by filename.
+    *   `xbrl_files` (dict): Dictionary mapping XBRL file types to filenames.
+    *   `date_filed` (datetime): Filing date.
+    *   `cik` (str): Company CIK.
+    *   `tfnm` (str): Filing accession number.
+*   **Methods:**
+    *   `get_xbrl_files() -> dict`: Returns dictionary of XBRL file types and filenames.
+
+---
+
+### File: `edgar/document.py`
+
+#### Class: `Document`
+Represents a single document within a filing.
+*   **Attributes:**
+    *   `type` (str): Document type (e.g., '10-K', 'EX-101.SCH').
+    *   `sequence` (str): Document sequence number.
+    *   `filename` (str): Document filename.
+    *   `description` (str | None): Document description.
+    *   `doc_text` (DocumentText): Document text content.
+
+---
+
+### File: `edgar/document_text.py`
+
+#### Class: `DocumentText`
+Represents the text content of a document with parsed XML/XBRL attributes.
+*   **Attributes:**
+    *   `data` (str | dict): Raw document data.
+    *   `xml` (BeautifulSoup | None): Parsed XML content (if applicable).
+    *   `xbrl` (BeautifulSoup | None): Parsed XBRL content (if applicable).
+*   **Note:** When converting to string for file operations, newlines are replaced with spaces to preserve XML attribute spacing.
+
+#### Function: `clean_doc`
+Cleans XBRL tags from document text.
+*   **Input:** `text` (str | dict).
+*   **Output:** `str`.
+
+---
+
+### File: `edgar/loader.py`
+
+#### Function: `get_edgar_local_path`
+Gets the configured EDGAR local path.
+*   **Output:** `str` (Default: '/mnt/text/edgar').
+
+#### Function: `load_xbrl_filing`
+Loads an XBRL filing into memory with parsed instance and taxonomy.
+*   **Input:**
+    *   `ticker` (str | None): Stock ticker (optional).
+    *   `year` (int | None): Filing year (optional).
+    *   `filing_url` (str | None): Direct filing URL (optional).
+    *   `edgar_local_path` (str): Local EDGAR cache path.
+    *   `memory_threshold_gb` (int, default=16): Memory threshold.
+    *   `return_data_pool` (bool, default=False): Whether to return data pool.
+*   **Output:** `tuple[Instance | None, Taxonomy | None]` or `tuple[Instance | None, Taxonomy | None, Pool | None]`.
+
+#### Function: `get_xbrl_df_by_ticker_year`
+Gets XBRL data as DataFrame for a specific ticker and year.
+*   **Input:**
+    *   `ticker` (str): Stock ticker.
+    *   `year` (int): Filing year.
+    *   `force_reload` (bool, default=False): Force reload from source.
+    *   `memory_threshold_gb` (int, default=16).
+    *   `edgar_local_path` (str).
+*   **Output:** `pd.DataFrame | None`.
+
+---
+
+### File: `edgar/edgar_helper.py`
+
+#### Function: `extract_filing_to_memfs`
+Extracts XBRL files from a Filing instance to an in-memory filesystem.
+*   **Input:**
+    *   `filing` (Filing): Filing object.
+    *   `mem_fs` (FS): PyFilesystem2 memory filesystem object.
+*   **Output:** `dict` (Map of file types to filenames: {'xsd': filename, 'pre': filename, 'lab': filename, ...}).
+*   **Note:** Preserves strict XML formatting for XSD schema files to ensure valid parsing.
+
+---
+
+### File: `edgar/dtd.py`
+
+#### Class: `DTD`
+Document Type Definition for EDGAR SGML documents.
+*   Contains tag definitions for parsing SEC SGML filings.
+
+---
+
+### File: `edgar/sgml.py`
+
+#### Class: `Sgml`
+SGML parser for SEC filings.
+*   **Constructor:** `Sgml(text: str, dtd: DTD)`.
+*   **Attributes:**
+    *   `map` (dict): Parsed SGML structure.
+
+#### Class: `SgmlException`
+Exception raised during SGML parsing.
+
+---
+
+### File: `edgar/requests_wrapper.py`
+
+#### Class: `GetRequest`
+Wrapper for HTTP GET requests with retry logic.
+
+#### Class: `RequestException`
+Exception raised for request errors.
+
+---
+
+### File: `edgar/financials.py`
+
+#### Class: `FinancialElement`
+Represents a single financial statement element.
+
+#### Class: `FinancialInfo`
+Financial information for a reporting period.
+
+#### Class: `FinancialReport`
+Complete financial report with multiple periods.
+
+#### Class: `FinancialReportEncoder`
+JSON encoder for FinancialReport objects.
+
+#### Function: `get_financial_report`
+Extracts financial report from HTML text.
+*   **Input:** `company` (str), `date_filed` (datetime), `financial_html_text` (str).
+*   **Output:** `FinancialReport`.
+
+---
+
+## 5. Utils Module (`utils`)
 
 ### File: `utils/href.py`
 
@@ -300,7 +532,66 @@ Wrapper to process a zipped taxonomy file.
 *   
 
 
-## Using Example
+## Usage Examples
+
+### Example 1: Accessing SEC Filings
+
+```python
+from leanrl import Stock, Filing, EG_LOCAL, extract_filing_to_memfs
+import fs
+
+# Initialize EDGAR local cache
+egl = EG_LOCAL(edgar_root_dir='/mnt/text/edgar/')
+
+# Method 1: Using Stock class with ticker
+stock = Stock('AAPL', egl=egl)
+filing = stock.get_filing(period='annual', year=2023)
+
+if filing:
+    print(f"Filing URL: {filing.url}")
+    print(f"Date filed: {filing.date_filed}")
+    print(f"XBRL files: {filing.xbrl_files}")
+    
+    # Access specific documents
+    for filename, doc in filing.documents.items():
+        print(f"  {filename}: {doc.type}")
+
+# Method 2: Direct filing URL
+filing_url = "https://www.sec.gov/Archives/edgar/data/320193/0000320193-23-000106.txt"
+filing = Filing(url=filing_url, egl=egl)
+
+# Method 3: Extract filing to memory filesystem
+memfs = fs.open_fs('mem://')
+files_map = extract_filing_to_memfs(filing, memfs)
+
+# Parse schema from memory filesystem
+from leanrl.taxonomy import parse_schema
+
+with memfs.open(files_map['xsd'], 'rb') as f_xsd:
+    schema = parse_schema(f_xsd)
+    print(f"Parsed {len(schema)} concepts from schema")
+```
+
+### Example 2: Loading XBRL Data
+
+```python
+from leanrl import load_xbrl_filing, get_xbrl_df_by_ticker_year
+
+# Load XBRL filing (returns Instance and Taxonomy objects)
+xid, tax = load_xbrl_filing(ticker='AAPL', year=2023)
+
+if xid and tax:
+    print(f"Loaded {len(xid.facts)} facts")
+    print(f"Taxonomy has {len(tax.concepts)} concepts")
+
+# Get XBRL data as DataFrame
+df = get_xbrl_df_by_ticker_year('AAPL', 2023)
+if df is not None:
+    print(df.head())
+```
+
+### Example 3: US-GAAP Taxonomy Analysis
+
 ```python
 
 """

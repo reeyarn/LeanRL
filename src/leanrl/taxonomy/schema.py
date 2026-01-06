@@ -128,7 +128,7 @@ class ConceptSchema:
 
 
 def parse_schema(
-    schema_path: str,
+    schema_path: Union[str, IO],
     #prefix: str = 'us-gaap',
     prefix: Optional[str] = None,
     filter_monetary: bool = False,
@@ -140,7 +140,7 @@ def parse_schema(
     Parse an XBRL taxonomy schema and extract concept definitions.
     
     Args:
-        schema_path: Path to the .xsd schema file
+        schema_path: Path to the .xsd schema file or file-like object
         prefix: Namespace prefix to filter by (e.g., 'us-gaap').
                 If None (default), accepts ALL concepts found in the file,
                 using the prefix defined in the element 'id'.
@@ -171,7 +171,36 @@ def parse_schema(
         ...                         filter_monetary=True,
         ...                         filter_duration=True)
     """
-    tree = ET.parse(schema_path)
+    # Handle both string paths and file-like objects
+    if isinstance(schema_path, str):
+        # Direct path parsing
+        tree = ET.parse(schema_path)
+    else:
+        # File-like object - read content and parse from string
+        # This handles memory filesystem objects and other file-like objects more robustly
+        content = schema_path.read()
+        if isinstance(content, bytes):
+            content = content.decode('utf-8')
+        
+        try:
+            tree = ET.ElementTree(ET.fromstring(content))
+        except ET.ParseError as e:
+            print("\n" + "="*80)
+            print("XML PARSING ERROR - DEBUG INFO")
+            print("="*80)
+            print(f"Error: {e}")
+            print(f"\nContent length: {len(content)} characters")
+            print(f"\nFirst 300 characters of content:")
+            print(repr(content[:300]))
+            print(f"\nCharacter at position 131 (column 132): {repr(content[131])} (ord={ord(content[131])})")
+            print(f"\nContext around position 132 (chars 100-160):")
+            print(repr(content[100:160]))
+            print(f"\nFirst line:")
+            first_line = content.split('\n')[0] if '\n' in content else content[:200]
+            print(repr(first_line))
+            print("="*80 + "\n")
+            raise
+    
     root = tree.getroot()
     
     results = []
@@ -267,7 +296,7 @@ def parse_schema(
 
 
 def parse_schema_to_dict(
-    schema_path: str,
+    schema_path: Union[str, IO],
     **kwargs
     ) -> Dict[str, ConceptSchema]:
     """
@@ -286,7 +315,7 @@ def parse_schema_to_dict(
     return {s.name: s for s in schemas}
 
 
-def get_concept_types(schema_path: str) -> Dict[str, Set[str]]:
+def get_concept_types(schema_path: Union[str, IO]) -> Dict[str, Set[str]]:
     """
     Get a summary of all concept types in the schema.
     
@@ -303,7 +332,7 @@ def get_concept_types(schema_path: str) -> Dict[str, Set[str]]:
     }
 
 
-def get_schema_dataframe(schema_path: str, **kwargs):
+def get_schema_dataframe(schema_path: Union[str, IO], **kwargs):
     """
     Parse schema and return as pandas DataFrame.
     
@@ -332,7 +361,7 @@ def get_schema_dataframe(schema_path: str, **kwargs):
 
 
 def extract_concepts_from_schema(
-    schema_path: str,
+    schema_path: Union[str, IO],
     prefix: str = 'us-gaap',
     filter_monetary: bool = False,
     include_abstract: bool = False,
@@ -344,7 +373,7 @@ def extract_concepts_from_schema(
     For full metadata, use parse_schema() which returns ConceptSchema objects.
     
     Args:
-        schema_path: Path to the .xsd schema file
+        schema_path: Path to the .xsd schema file or file-like object
         prefix: Namespace prefix (e.g., 'us-gaap')
         filter_monetary: If True, only return monetary type concepts
         include_abstract: If True, include abstract grouping elements
