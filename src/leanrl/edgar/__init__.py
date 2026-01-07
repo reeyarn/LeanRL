@@ -64,6 +64,7 @@ from .requests_wrapper import GetRequest, RequestException
 
 # Helper functions
 from .edgar_helper import extract_filing_to_memfs
+from .edgar_test import extract_filing_to_memfs_test
 
 __all__ = [
     # Core EDGAR
@@ -112,4 +113,5 @@ __all__ = [
     'RequestException',
     # edgar_helper
     'extract_filing_to_memfs',
+    'extract_filing_to_memfs_test',
 ]

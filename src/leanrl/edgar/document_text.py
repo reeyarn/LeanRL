@@ -4,6 +4,7 @@ import warnings
 import re
 
 from .dtd import DTD
+from ..utils.xml_utils import fix_all_tag_spacing
 
 
 # According to the EDGAR SGML specs, DOCUMENT.TEXT has the following children
@@ -41,12 +42,11 @@ class DocumentText:
 
             if type(data) is dict and tag in data:
                 value = data[tag]
-                # Replace newlines with spaces (not empty string) to preserve XML attribute spacing
-                value = re.sub(r"\n", ' ', value)
+                # Remove XBRL wrapper tags
                 value = re.sub(r'^<XBRL>', '', value)
                 value = re.sub(r'</XBRL>$', '', value)
-                # Strip leading/trailing whitespace (XML declaration must start at column 0)
-                value = value.strip()
+                # Fix attribute spacing in ALL tags while preserving text content
+                value = fix_all_tag_spacing(value)
                 data[tag] = value
 
                 if attr == 'xml':
@@ -57,12 +57,11 @@ class DocumentText:
 
                 setattr(self, attr, value)
             elif type(data) is str:
-                # Replace newlines with spaces (not empty string) to preserve XML attribute spacing
-                data = re.sub(r"\n", ' ', data)
+                # Remove XBRL wrapper tags
                 data = re.sub(r'^<XBRL>', '', data)
                 data = re.sub(r'</XBRL>$', '', data)
-                # Strip leading/trailing whitespace (XML declaration must start at column 0)
-                data = data.strip()
+                # Fix attribute spacing in ALL tags while preserving text content
+                data = fix_all_tag_spacing(data)
         self.data = data        
 
 

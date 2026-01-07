@@ -114,6 +114,7 @@ from .edgar import (
     RequestException,
     # Helper
     extract_filing_to_memfs,
+    extract_filing_to_memfs_test,
 )
 
 __all__ = [
@@ -213,4 +214,5 @@ __all__ = [
     'RequestException',
     # EDGAR - Helper
     'extract_filing_to_memfs',
+    'extract_filing_to_memfs_test',
 ]

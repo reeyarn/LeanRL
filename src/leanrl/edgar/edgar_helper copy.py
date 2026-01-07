@@ -3,7 +3,6 @@ import fs
 from .filing import Filing
 import re
 import logging 
-from ..utils.xml_utils import safe_fix_xml_spacing
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +40,14 @@ def extract_filing_to_memfs(filing: Filing, mem_fs):
             if hasattr(doc.doc_text, 'data') and isinstance(doc.doc_text.data, str):
                 content = doc.doc_text.data
             elif hasattr(doc.doc_text, 'data') and isinstance(doc.doc_text.data, dict):
-                # Process dict values for XSD: use aggressive approach (safe for schema files)
+                # Process dict values: replace newlines with spaces to preserve XML attribute spacing
                 parts = []
                 for v in doc.doc_text.data.values():
                     if v:
                         v_str = str(v)
-                        # For XSD schema files, aggressive spacing fix is safe (no HTML content)
-                        v_str = safe_fix_xml_spacing(v_str, is_schema=True)
+                        # Replace newlines with spaces and strip (same fix as DocumentText.__init__)
+                        v_str = re.sub(r"\n", ' ', v_str)
+                        v_str = v_str.strip()
                         parts.append(v_str)
                 content = " ".join(parts)  # Join with space, not newline
         else:
@@ -67,15 +67,16 @@ def extract_filing_to_memfs(filing: Filing, mem_fs):
                 content = doc.doc_text.data
             # 3. Fallback if data is a dict but specific tags weren't attributes
             elif hasattr(doc.doc_text, 'data') and isinstance(doc.doc_text.data, dict):
-                # Process dict values: use surgical fix to preserve embedded HTML
+                # Process dict values: replace newlines with spaces to preserve XML attribute spacing
                 parts = []
                 for v in doc.doc_text.data.values():
                     if v:
                         v_str = str(v)
-                        # Use surgical approach: only fix XML headers, preserve content
-                        v_str = safe_fix_xml_spacing(v_str, is_schema=False)
+                        # Replace newlines with spaces and strip (same fix as DocumentText.__init__)
+                        v_str = re.sub(r"\n", ' ', v_str)
+                        v_str = v_str.strip()
                         parts.append(v_str)
-                content = "\n".join(parts)  # Join with newline to preserve structure
+                content = " ".join(parts)  # Join with space, not newline
             
         if not content: 
             continue

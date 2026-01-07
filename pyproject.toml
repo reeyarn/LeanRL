@@ -12,7 +12,8 @@ license = {text = "MIT"}
 dependencies = [
     "pandas>=2.2.0",
     "openpyxl>=3.1.0",  # Required for Excel export (df.to_excel())
-    "thefuzz>=0.22.0"
+    "thefuzz>=0.22.0",
+    "psutil>=6.1.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
