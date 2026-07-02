@@ -32,6 +32,29 @@ FILING_SUMMARY_FILE = 'FilingSummary.xml'
 
 import re
 
+# A YYYYMMDD date at the start of a digit run (accession numbers like
+# 0000950123-10-017583 must not match)
+_ACCEPTANCE_DATE_RE = re.compile(r'(?<!\d)((?:19|20)\d{2}[01]\d[0-3]\d)')
+
+
+def parse_acceptance_datetime(text):
+    """
+    Extract the filing date from an SGML <ACCEPTANCE-DATETIME> element.
+
+    Malformed headers can yield arbitrary text here (e.g. 'ACCESSION
+    NUMBER: ...'), so extract a plausible YYYYMMDD date by regex and return
+    None instead of raising when there is none.
+    """
+    if not text:
+        return None
+    match = _ACCEPTANCE_DATE_RE.search(str(text))
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), '%Y%m%d')
+    except ValueError:
+        return None
+
 """
 1001003 - Statement - CONSOLIDATED BALANCE SHEETS
 1002004 - Statement - CONSOLIDATED BALANCE SHEETS (Parenthetical)
@@ -123,10 +146,11 @@ class Filing:
     CACHE_VALIDITY_DAYS = 30  # Cache files for 30 days by default
     sgml = None
 
-    def __init__(self, url, company=None, egl = EG_LOCAL('edgar')):
+    def __init__(self, url, company=None, egl = EG_LOCAL('edgar'), strict_local=False):
         self.url = url
         self.company = company
         self.egl = egl
+        self.strict_local = strict_local
         self.cik = None
         self.tfnm = None
         
@@ -169,7 +193,7 @@ class Filing:
             elif "PRE" in doc.type:
                 xbrl_files["pre"] = doc.filename
             elif "XML" in doc.type:
-                if re.search("\d{8}", doc.filename) or re.search("_htm.xml$", doc.filename):
+                if re.search(r"\d{8}", doc.filename) or re.search(r"_htm\.xml$", doc.filename):
                     xbrl_files["xml"] = doc.filename
         if xbrl_files.get("xml") is None:
             for doc in docs:
@@ -200,7 +224,7 @@ class Filing:
         # Create CIK subdirectory
         #cik_dir = self.CACHE_DIR / cik
         cik_dir = self.egl.cache_dir / '10k-bycik' / cik
-        cik_dir.mkdir(exist_ok=True)
+        cik_dir.mkdir(parents=True, exist_ok=True)
         acc_num = str(filename).split('.')[0]
         #return cik_dir / filename
         filename = str(filename) + ".gz"
@@ -268,10 +292,15 @@ class Filing:
             document = Document(document_raw)
             self.documents[document.filename] = document
 
-        # Process filing date
-        acceptance_datetime_element = self_sgml.map[dtd.sec_document.tag][dtd.sec_header.tag][dtd.acceptance_datetime.tag]
-        acceptance_datetime_text = acceptance_datetime_element[:8]
-        self.date_filed = datetime.strptime(acceptance_datetime_text, '%Y%m%d')
+        # Process filing date; malformed headers must not kill the filing
+        # (its documents parse fine), so fall back to None
+        try:
+            acceptance_datetime_element = self_sgml.map[dtd.sec_document.tag][dtd.sec_header.tag][dtd.acceptance_datetime.tag]
+        except (KeyError, TypeError):
+            acceptance_datetime_element = None
+        self.date_filed = parse_acceptance_datetime(acceptance_datetime_element)
+        if self.date_filed is None:
+            logger.warning(f"Could not parse ACCEPTANCE-DATETIME for {self.url}; date_filed set to None")
         
 
     def _fetch_and_process_filing(self):
@@ -301,22 +330,36 @@ class Filing:
         # self.date_filed = datetime.strptime(acceptance_datetime_text, '%Y%m%d')
 
     def _load_or_fetch_filing(self):
-        """Load filing from cache if available, otherwise fetch and cache it"""
+        """Load filing from cache if available, otherwise fetch and cache it.
+
+        With strict_local=True, never fall back to sec.gov: use the cached
+        file whatever its age (filings are immutable), and raise
+        FileNotFoundError on a cache miss.
+        """
         try:
             cache_path = self._get_cache_path()
         except ValueError as e:
             logger.warning(f"Warning: {e}")
+            if self.strict_local:
+                raise FileNotFoundError(
+                    f'strict_local=True: cannot resolve cache path for {self.url}') from e
             # If we can't parse the URL, fetch without caching
             self._fetch_and_process_filing()
             return
-            
-        if self._is_cache_valid(cache_path):
+
+        if self._is_cache_valid(cache_path) or (self.strict_local and cache_path.exists()):
             try:
                 self._load_from_cache(cache_path)
                 return
             except Exception as e:
+                if self.strict_local:
+                    raise
                 logger.warning(f'Error loading from cache: {e}. Fetching fresh data...')
-        
+
+        if self.strict_local:
+            raise FileNotFoundError(
+                f'strict_local=True and filing not in local cache: {cache_path} (url={self.url})')
+
         self._fetch_and_process_filing()
 
     def get_statements(self):

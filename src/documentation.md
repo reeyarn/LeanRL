@@ -369,17 +369,23 @@ Container for statement type constants.
 
 #### Class: `Filing`
 Represents an SEC filing with document access and caching.
-*   **Constructor:** `Filing(url: str, company: str | None, egl: EG_LOCAL)`.
+*   **Constructor:** `Filing(url: str, company: str | None, egl: EG_LOCAL, strict_local: bool = False)`.
+    *   `strict_local=True` never falls back to sec.gov: a cached filing is used regardless of its age (filings are immutable), and a cache miss raises `FileNotFoundError`. Use this for local batch runs to avoid silent network dependence and SEC rate limiting.
 *   **Attributes:**
     *   `url` (str): URL of the filing.
     *   `company` (str | None): Company name.
     *   `documents` (dict): Dictionary of Document objects keyed by filename.
     *   `xbrl_files` (dict): Dictionary mapping XBRL file types to filenames.
-    *   `date_filed` (datetime): Filing date.
+    *   `date_filed` (datetime | None): Filing date. `None` when the SGML header is malformed (the filing's documents still parse).
     *   `cik` (str): Company CIK.
     *   `tfnm` (str): Filing accession number.
 *   **Methods:**
     *   `get_xbrl_files() -> dict`: Returns dictionary of XBRL file types and filenames.
+
+#### Function: `parse_acceptance_datetime`
+Extracts the filing date from an SGML `<ACCEPTANCE-DATETIME>` element.
+*   **Input:** `text` (str | None): Raw element value; malformed headers may contain arbitrary text (e.g. `ACCESSION NUMBER: ...`).
+*   **Output:** `datetime | None` (regex-extracts a plausible `YYYYMMDD`; returns `None` instead of raising).
 
 ---
 
@@ -449,8 +455,9 @@ Extracts XBRL files from a Filing instance to an in-memory filesystem.
 *   **Input:**
     *   `filing` (Filing): Filing object.
     *   `mem_fs` (FS): PyFilesystem2 memory filesystem object.
-*   **Output:** `dict` (Map of file types to filenames: {'xsd': filename, 'pre': filename, 'lab': filename, ...}).
+*   **Output:** `dict` (Map of file types to filenames: {'xsd': ..., 'pre': ..., 'lab': ..., 'cal': ..., 'def': ..., 'ref': ..., 'xml': ..., 'filingsummary': ...}).
 *   **Note:** Preserves strict XML formatting for XSD schema files to ensure valid parsing.
+*   **Note:** The instance document (`'xml'` key) is selected by content (`contextRef` / `<xbrli:context`), not by filename; when several files qualify, the largest wins. Early-era (2009–2010) combined/renamed linkbases such as `defnref.xml` are classified as linkbases (`'def'`/`'ref'`), never as the instance.
 
 ---
 
@@ -478,7 +485,10 @@ Exception raised during SGML parsing.
 ### File: `edgar/requests_wrapper.py`
 
 #### Class: `GetRequest`
-Wrapper for HTTP GET requests with retry logic.
+Wrapper for HTTP GET requests with backoff retry on SEC throttling.
+*   **Constructor:** `GetRequest(url, headers=headers, max_retries=4, backoff_factor=1.0)`.
+*   Retries on `429`/`503` with exponential backoff (`backoff_factor * 2**attempt` seconds), honoring the `Retry-After` response header; other error statuses raise immediately.
+*   The default `User-Agent` can be overridden with the `EDGAR_USER_AGENT` environment variable (SEC fair-access policy requires a declared contact).
 
 #### Class: `RequestException`
 Exception raised for request errors.

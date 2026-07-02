@@ -52,6 +52,8 @@ pip install -e .
 
 or  `uv pip install -e ".[dev]"`
 
+> **Note on editable installs:** `pip install -e .` records the absolute repository path. If the repository later moves (e.g. a Dropbox root change), `import leanrl` fails even though `pip show leanrl` still lists the package. Re-run `pip install -e .` from the new location, or as a temporary workaround set `PYTHONPATH=/path/to/LeanRL/src`.
+
 
 ## Example
 ```python
